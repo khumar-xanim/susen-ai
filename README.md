@@ -50,3 +50,12 @@ To run the project, copy them to the project root and fill them with your own da
   `PDF_Y_N = 0` marks them. If a leaflet or a catalogue field is missing, the chatbot
   must say it does not have that information instead of guessing.
 - Leaflets will be chunked by bold headings; scanned leaflets go through OCR.
+### Step 2 - Clean catalogue (plan 1.1)
+Script: `scripts/02_clean_catalogue.py`. Output (not in Git): `outputs/catalogue_clean.csv`.
+New columns, originals untouched:
+- `form_clean`: fixed typos ("KAPSUL", "İnfuzya üçün məhlul")
+- `price_azn`: numeric price (official value, unchanged); `price_review`: True if > 1000 AZN
+- `has_leaflet`: from PDF_Y_N
+- `missing_fields`: which catalogue fields are empty in that row
+
+Run: `python scripts\02_clean_catalogue.py`
