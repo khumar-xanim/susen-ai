@@ -63,3 +63,5 @@ class ProductIndex:
                   "has_leaflet": r["has_leaflet"] == "True"} for _, r in rows.iterrows()]
         return {"status": "found" if len(idx) == 1 else "ambiguous",
                 "candidates": cands, "n_total": len(idx)}
+    def row(self, med_id):
+        return self.df[self.df[COL_ID] == med_id].iloc[0]

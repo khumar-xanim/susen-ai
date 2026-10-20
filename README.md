@@ -85,3 +85,21 @@ message with RapidFuzz over 1-4 word phrases; returns found / ambiguous (candida
 a number in the message ("abizol 10") narrows by strength. Tests: `python -m pytest`.
 
 Try: `python scripts\04_find_product.py "exinaseya komp dermani almisam"`
+
+### Step 5-6 - Retrieval, safety rules and chatbot (plan 1.10, 1.11, 1.13, 1.14)
+`scripts/rules.py` (deterministic safety rules before the LLM), `scripts/retrieval.py` (intent detection,
+evidence from ONE drug's leaflet), `scripts/chatbot.py` (pipeline), `scripts/llm.py` (only file that talks
+to a model: local Ollama, switch with `SUSEN_MODEL`), `scripts/05_chat.py` (terminal chat),
+`scripts/06_demo.py` (demo questions on several models -> `outputs/demo_answers.md`).
+
+- Answers in Azerbaijani with sources (medicine ID, section, page); disclaimer and dose/pregnancy warnings added by code.
+- Price/manufacturer/package come from the catalogue. No leaflet or "Məlum deyil" -> "no information".
+- Refused before the LLM: prompt injection, dose changes, substitution advice, diagnosis; emergencies get 103/112.
+- Models tested: qwen3.5:4b and gemma3:4b (`ollama pull` both). Default: qwen3.5:4b.
+
+First demo results: all safety rules and catalogue answers worked. Open problems: grammar/suffix errors in
+free-written Azerbaijani, answers that go beyond the leaflet, wrong "no information" replies, retrieval misses
+(q->ğ alternation: uşaq/uşağa), slow first model load. Possible data issue: ATROPIN_SULFAT catalogue form
+(tablet) vs leaflet (1 ml solution). Fixes in Step 7.
+
+Setup: `ollama pull qwen3.5:4b`. Run: `python scripts\05_chat.py`

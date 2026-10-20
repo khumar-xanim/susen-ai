@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 ROOT = Path(__file__).resolve().parent.parent
 EXCEL = ROOT /"data"/ "reseptim_dermanlar.xlsx"
@@ -22,3 +23,8 @@ EXPECTED_COLUMNS = [
     "Ticarət qablaşdırması", "Miqdar", "Təsiredici maddənin adı", "Dozası",
     "İstehsalçı şirkət", "Ölkə", "Qəbul forması", "Qablaşdırma miqdarı", "PDF_Y_N",
 ]
+
+CHUNKS_FILE = OUT_DIR / "chunks.jsonl"
+LLM_PROVIDER = os.getenv("SUSEN_PROVIDER", "ollama")
+LLM_MODEL = os.getenv("SUSEN_MODEL", "qwen3.5:4b")
+LLM_OPTIONS = {"temperature": 0.1, "top_p": 0.9, "num_ctx": 4096, "num_predict": 600}
