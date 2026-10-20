@@ -59,3 +59,21 @@ New columns, originals untouched:
 - `missing_fields`: which catalogue fields are empty in that row
 
 Run: `python scripts\02_clean_catalogue.py`
+
+### Step 3 - PDF extraction and chunking (plan 1.6, 1.8)
+Code: `scripts/leaflet_parser.py`, `scripts/03_parse_pdfs.py` (parallel), `scripts/show_chunks.py`.
+Outputs (not in Git): `outputs/chunks.jsonl`, `pdf_extraction_log.csv`, `heading_vocabulary.csv`.
+
+- Text layer read with PyMuPDF; headings = whole-line bold text; one chunk per section,
+  long sections split to ~1200 characters with sentence overlap.
+- Each chunk keeps medicine_id, section, page range, source file, extraction date.
+- Pages without a usable text layer are listed in `ocr_pages` for Step 4.
+
+- 3479 PDFs parsed in ~1 min, ~108,900 chunks (mean ~500 chars), 3477 fully OK.
+- Headings = whole-line bold text; wrapped headings are merged; one chunk per section,
+  long sections split with sentence overlap. Chunks keep medicine_id, section, pages, source file, date.
+- Scans: only BENDATOP_04f237 (no text) and QRAMMIDIN_NEO_ANESTETIKL_67467f (partial) need OCR - done at the end.
+- Heading spelling variants exist (e.g. "Əks göstərişləri"); mapped to canonical sections in the retrieval step.
+
+
+Run: `python scripts\03_parse_pdfs.py` then `python scripts\show_chunks.py <ID prefix>`

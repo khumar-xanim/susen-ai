@@ -58,7 +58,6 @@ section("5. CATEGORICAL VALUES")
 for col in [COL_FORM, COL_INTAKE, COL_COUNTRY, COL_PDF]:
     log(f"\n--- {col} ---")
     log(df[col].value_counts(dropna=False).to_string())
-
 forms = df[COL_FORM].str.strip()
 variants = forms.groupby(forms.str.casefold()).unique()
 log("\nforms spelled in more than one way (case only):")
