@@ -77,3 +77,11 @@ Outputs (not in Git): `outputs/chunks.jsonl`, `pdf_extraction_log.csv`, `heading
 
 
 Run: `python scripts\03_parse_pdfs.py` then `python scripts\show_chunks.py <ID prefix>`
+
+### Step 4 - Normaliser and product finder (plan 1.2, 1.4)
+`scripts/normalize.py`: `search_key()` folds İ/ı/I/i, ə, ş, ç, ğ, ö, ü and symbols to a plain lowercase
+key (original text is never overwritten). `scripts/product_matcher.py`: finds the product in a user
+message with RapidFuzz over 1-4 word phrases; returns found / ambiguous (candidate list) / not_found;
+a number in the message ("abizol 10") narrows by strength. Tests: `python -m pytest`.
+
+Try: `python scripts\04_find_product.py "exinaseya komp dermani almisam"`
