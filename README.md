@@ -143,3 +143,9 @@ Setup: `ollama pull qwen3.5:4b`. Run: `python scripts\05_chat.py`
   "<drug> təlimat vərəqəsi, səh. N"); admin view via `SUSEN_ADMIN=1`; page viewer only opens bot-selected files;
   session question limit and image size limit; model-server crash retry.
 - `kb.py` (reader for the knowledge base, Step 11b), `08_pdf_identity_check.py` more tolerant.
+### Step 11b - Knowledge base (plan 1.9, 1.10)
+Trusted background texts for "what does this term mean / pharmacy practice" questions, retrieved (not memorised):
+AMU lecture slides/DOCX (local, not in Git, permission needed for public use) + MedlinePlus health topics
+(English; credit: "Source: MedlinePlus, National Library of Medicine"). `15_kb_build.py` (ingest + bge-m3
+embeddings via Ollama), `kb.py`, `16_kb_search.py` (score check). Answers use ONLY retrieved passages, show the
+source excerpt, and say "not found in reliable sources" when nothing is close enough (`MIN_SCORE`).

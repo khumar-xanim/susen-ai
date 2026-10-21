@@ -6,3 +6,7 @@ rapidfuzz
 pytest
 ollama
 streamlit
+opencv-python-headless
+pytesseract
+pillow
+python-docx
