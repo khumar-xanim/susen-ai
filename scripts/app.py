@@ -1,4 +1,4 @@
-"""SUSEN AI chat window. Run: streamlit run scripts\\app.py"""
+"""SUSEN AI chat window. Run: python -m streamlit run scripts\\app.py   (admin view: $env:SUSEN_ADMIN="1")"""
 import json
 from datetime import datetime
 
@@ -6,13 +6,16 @@ import pymupdf
 import streamlit as st
 
 from chatbot import Chatbot
-from config import OUT_DIR, PDF_DIR
+from config import ADMIN, OUT_DIR, PDF_DIR
 from llm import warm_up
+
+MAX_QUESTIONS = 60            # per browser session
+MAX_IMAGE_BYTES = 8_000_000
 
 st.set_page_config(page_title="SUSEN AI", page_icon="💊")
 st.title("💊 SUSEN AI")
 st.caption("Dərman təlimat vərəqələri üzrə məlumat köməkçisi. Mən həkim və ya əczaçı deyiləm: məlumatı rəsmi "
-           "təlimat vərəqələrindən və kataloqdan götürürəm.")
+           "təlimat vərəqələrindən və etibarlı mənbələrdən götürürəm.")
 
 
 @st.cache_resource(show_spinner="Məlumat bazası yüklənir…")
@@ -22,6 +25,8 @@ def get_bot():
 
 @st.cache_data(show_spinner=False)
 def render_page(file, page):
+    if not file.endswith(".pdf") or "/" in file or "\\" in file or ".." in file:
+        raise ValueError("bad file")
     with pymupdf.open(PDF_DIR / file) as doc:
         return doc.load_page(page - 1).get_pixmap(dpi=110).tobytes("png")
 
@@ -37,9 +42,9 @@ bot = get_bot()
 st.session_state.setdefault("messages", [])
 
 with st.sidebar:
-    st.header("Ayarlar")
-    model = st.selectbox("Model", ["qwen3.5:4b", "gemma3:4b", "qwen3.5:9b"])
-    temperature = st.slider("Temperature", 0.0, 1.0, 0.1, 0.05)
+    if ADMIN:
+        st.header("Admin")
+        bot.model = st.text_input("Model", bot.model)
     if st.button("Yeni söhbət"):
         st.session_state.messages = []
         bot.reset()
@@ -48,14 +53,17 @@ with st.sidebar:
     st.subheader("📷 Təlimat şəkli")
     files = st.file_uploader("Aldığınız dərmanın təlimatının şəkli", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
     if files and st.button("Şəkli oxu"):
-        with st.spinner("Şəkil oxunur…"):
-            try:
-                from ocr import ocr_bytes
-                texts = [ocr_bytes(f.getvalue()) for f in files]
-                st.session_state.photo_info = bot.load_photo(texts)
-                st.session_state.photo_text = "\n\n".join(texts)
-            except Exception as e:
-                st.error(f"Şəkli oxumaq alınmadı: {e}")
+        if any(f.size > MAX_IMAGE_BYTES for f in files):
+            st.error("Şəkil çox böyükdür (maksimum 8 MB).")
+        else:
+            with st.spinner("Şəkil oxunur…"):
+                try:
+                    from ocr import ocr_bytes
+                    texts = [ocr_bytes(f.getvalue()) for f in files]
+                    st.session_state.photo_info = bot.load_photo(texts)
+                    st.session_state.photo_text = "\n\n".join(texts)
+                except Exception as e:
+                    st.error("Şəkli oxumaq alınmadı." + (f" {e}" if ADMIN else " Daha aydın şəkil yükləməyi yoxlayın."))
     if bot.photo:
         info = st.session_state.get("photo_info", {})
         st.success(f"Şəkil rejimi aktivdir. Tanınan dərman: {info.get('drug') or 'tanınmadı'}")
@@ -65,13 +73,13 @@ with st.sidebar:
             bot.photo = None
             st.rerun()
 
-if st.session_state.get("warm") != model:
-    with st.spinner(f"{model} yüklənir (ilk dəfə bir az çəkə bilər)…"):
+if "warm" not in st.session_state:
+    with st.spinner("Model yüklənir (ilk dəfə bir az çəkə bilər)…"):
         try:
-            warm_up(model)
-            st.session_state.warm = model
+            warm_up(bot.model)
+            st.session_state.warm = True
         except Exception as e:
-            st.error(f"Ollama ilə əlaqə yoxdur: {e}")
+            st.error("Model hazırda əlçatan deyil." + (f" {e}" if ADMIN else ""))
 
 if not st.session_state.messages:
     st.info("Salam! Dərmanın adını və sualınızı yazın, məsələn: «Abizol 10 mq yan təsirləri nədir?» "
@@ -85,9 +93,9 @@ for i, m in enumerate(st.session_state.messages):
                 st.caption("📄 " + s["label"])
                 if s["file"].endswith(".pdf") and st.toggle("Səhifəni göstər", key=f"pg{i}_{j}"):
                     try:
-                        st.image(render_page(s["file"], s["page"]), caption=f"{s['file']}, səh. {s['page']}")
-                    except Exception as e:
-                        st.warning(f"Səhifə göstərilmədi: {e}")
+                        st.image(render_page(s["file"], s["page"]), caption=s["label"])
+                    except Exception:
+                        st.warning("Səhifə göstərilmədi.")
             c1, c2, _ = st.columns([1, 1, 8])
             if c1.button("👍", key=f"up{i}"):
                 save_feedback(m, 1)
@@ -103,7 +111,9 @@ if last and last["role"] == "assistant" and last.get("status") == "ambiguous":
 
 prompt = st.chat_input("Dərman haqqında sualınızı yazın…") or st.session_state.pop("queued", None)
 if prompt:
-    bot.model, bot.options = model, {"temperature": temperature}
+    if sum(m["role"] == "user" for m in st.session_state.messages) >= MAX_QUESTIONS:
+        st.warning("Bu sessiyada sual limitinə çatdınız. Səhifəni yeniləyin.")
+        st.stop()
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)

@@ -28,8 +28,8 @@ EXPECTED_COLUMNS = [
 CHUNKS_FILE = OUT_DIR / "chunks.jsonl"
 LLM_PROVIDER = os.getenv("SUSEN_PROVIDER", "ollama")
 LLM_MODEL = os.getenv("SUSEN_MODEL", "qwen3.5:4b")
-LLM_OPTIONS = {"temperature": 0.1, "top_p": 0.9, "num_ctx": 4096, "num_predict": 600}
-
+LLM_OPTIONS = {"temperature": 0.0, "top_p": 1.0, "num_ctx": 4096, "num_predict": 600, "seed": 42}
+ADMIN = os.getenv("SUSEN_ADMIN") == "1"      # admin view: file names, model setting, error details
 
 TESSDATA_DIR = ROOT / "tessdata"
 EVAL_DIR = OUT_DIR / "eval"

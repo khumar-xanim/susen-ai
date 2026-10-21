@@ -124,3 +124,22 @@ Setup: `ollama pull qwen3.5:4b`. Run: `python scripts\05_chat.py`
 ### Step 8 - Chat window (plan 1.16)
 `streamlit run scripts\app.py`: chat bubbles, model + temperature selector, candidate buttons, source list with
 "show leaflet page" (renders the PDF page), 👍/👎 feedback (`outputs/feedback.jsonl`), photo upload (Step 10).
+
+### Step 9- OCR, photos and evaluation (plan 1.7, 1.17)
+- `ocr.py` (deskew + adaptive threshold + Tesseract `aze`, needs `tessdata/aze.traineddata`, not in Git),
+  `09_ocr_scans.py` adds OCR chunks for pages without text layer; headings of scans/photos are matched against
+  `heading_vocabulary.csv`. Photo mode in the chat window: answers come from the user's photo, source "Sizin şəkil".
+- Evaluation, dev/test split BY DRUG (`config.split_of`): `10_eval_make.py` (questions), `11_eval_run.py`
+  (product identification, Recall@1/3/4, MRR vs keyword baseline, abstention, raw/final hallucination proxies,
+  temperature sweep, direct + photo-embedded injection), `12_eval_score.py` (manual labels: correctness,
+  faithfulness, hallucination), `13_eval_ocr.py` (simulated phone photos: CER, drug identification).
+- Tune on dev only; report test once.
+### Step 10- Fixes and hardening
+- Data finding: table columns disagree with the product string in 4117/4210 rows (`14_alignment_audit.py`);
+  form/composition/maker/country/pack come from the product string; prices carry a caution until verified.
+- `normalize.py`: Cyrillic look-alike letters in leaflet headings are folded; section patterns extended;
+  `leaflet_parser.is_heading` no longer takes sentences as headings. OCR: `TESSDATA_PREFIX` instead of quoted flag.
+- Security: temperature fixed at 0 (seed 42); users never see file names/IDs/model/errors (public labels
+  "<drug> təlimat vərəqəsi, səh. N"); admin view via `SUSEN_ADMIN=1`; page viewer only opens bot-selected files;
+  session question limit and image size limit; model-server crash retry.
+- `kb.py` (reader for the knowledge base, Step 11b), `08_pdf_identity_check.py` more tolerant.

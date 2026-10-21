@@ -13,12 +13,19 @@ KEEP_ALIVE = "30m"
 def _chat(model, messages, options):
     if LLM_PROVIDER != "ollama":
         raise NotImplementedError(f"Provider '{LLM_PROVIDER}' is not implemented yet")
-    try:
-        return ollama.chat(model=model, messages=messages, options=options, think=False, keep_alive=KEEP_ALIVE)
-    except Exception as e:
-        if "think" not in str(e).lower():
+    for attempt in range(2):
+        try:
+            try:
+                return ollama.chat(model=model, messages=messages, options=options, think=False, keep_alive=KEEP_ALIVE)
+            except Exception as e:
+                if "think" not in str(e).lower():
+                    raise
+                return ollama.chat(model=model, messages=messages, options=options, keep_alive=KEEP_ALIVE)
+        except Exception as e:
+            if attempt == 0 and "terminated" in str(e).lower():      # the model server crashed: restart once
+                time.sleep(3)
+                continue
             raise
-        return ollama.chat(model=model, messages=messages, options=options, keep_alive=KEEP_ALIVE)
 
 
 def warm_up(model=None):

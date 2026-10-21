@@ -12,6 +12,8 @@ def test_typed_without_special_letters():
 def test_dotless_i():
     assert search_key("Işıq") == "isiq"
 
-
 def test_symbols_removed():
     assert search_key("Abizol® 5 mq") == "abizol 5 mq"
+    
+def test_cyrillic_lookalikes():
+    assert search_key("İstifаdə qаydаsı və dоzаsı") == search_key("Istifade qaydasi ve dozasi")

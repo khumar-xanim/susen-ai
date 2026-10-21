@@ -109,6 +109,7 @@ def extract_rows(doc):
 def is_heading(row):
     t = row["text"]
     return (row["bold"] and 2 <= len(t) <= 90 and len(t.split()) <= 12
+            and not t.rstrip().endswith((".", "!", "?")) and "," not in t
             and re.search(r"[^\W\d_]", t) is not None)
 
 
