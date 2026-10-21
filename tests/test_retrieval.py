@@ -1,7 +1,6 @@
 from retrieval import detect_intents, wanted_categories
 from rules import check
 
-
 def test_child_question():
     i = detect_intents("bronxovent 1 yasli usaga vermek olar?")
     assert "pediatric" in i and "contraindications" in wanted_categories(i)
@@ -17,3 +16,7 @@ def test_price_variants():
 
 def test_drug_recommendation_refused():
     assert check("hansi derman bas agrima yaxsi tesir eder?")[0] == "diagnosis"
+
+def test_summary_and_maker_intents():
+    assert "summary" in detect_intents("abazaklar haqqinda qisa melumat ver")
+    assert "maker" in detect_intents("adaptol hansi sirket istehsal edir?")

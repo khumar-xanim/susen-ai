@@ -4,7 +4,10 @@ import re
 from collections import defaultdict
 from functools import lru_cache
 
-from config import CHUNKS_FILE
+import pandas as pd
+from rapidfuzz import fuzz, process
+
+from config import CHUNKS_FILE, OUT_DIR
 from normalize import search_key
 
 # Patterns work on search_key() text (lowercase, ə->e ı->i ş->s ç->c ğ->g ö->o ü->u).
@@ -34,7 +37,8 @@ INTENT_PATTERNS = [
     ("price", r"qiymet|neceyedir|nece manat|nece pul|\bazn\b|bahadir|ucuzdur"),
     ("maker", r"istehsal|hansi sirket|hansi olke"),
     ("package", r"qablasdirma|qutuda|nece (eded|tablet|ampul|kapsul) (var|olur)"),
-    ("availability", r"hansi aptek|harada (tap|sat|al)|stokda|aptekde (var|tap)"),
+    ("availability", r"hansi aptek|harada (tap|sat|al)|stokda"),
+    ("summary", r"xulase|qisa mezmun|qisaca|ne haqqindadir|haqqinda melumat|barede melumat"),
     ("contraindications", r"eks gosteris|olarmi|olar mi|olmaz|bilmez|bilmerem|bilerem|bilermi|qadagan|etmemeli|isletmek|icmek"),
     ("side_effects", r"yan tesir|elave tesir|yan effekt|zerer|reaksiya|a?l+erg"),
     ("dosage", r"\bdoza|nece (qebul|ic|istifade|vur)|gunde nece|nece defe|qebul qaydasi|istifade qaydasi|yemekden (evvel|sonra)|ac qarina|tox qarina"),
@@ -52,9 +56,9 @@ INTENT_PATTERNS = [
     ("dispensing", r"resept|receptsiz|resepsiz|aptekden buraxil"),
     ("explain", r"ne demek|hansilardir|izah|aciqla|menasi|sade dille|basa dus"),
 ]
-CATALOGUE_INTENTS = {"price", "maker", "package", "availability"}
-# some questions also need neighbouring sections
-EXTRA_SECTIONS = {"pediatric": {"dosage", "contraindications"}, "route": {"dosage", "form"}}
+SUMMARY_SECTIONS = ["indications", "contraindications", "dosage", "side_effects", "pregnancy", "storage"]
+EXTRA_SECTIONS = {"pediatric": {"dosage", "contraindications"}, "route": {"dosage", "form"},
+                  "maker": {"manufacturer_info"}, "package": {"form"}, "summary": set(SUMMARY_SECTIONS)}
 
 STOP = {"ve", "ile", "nedir", "derman", "dermani", "dermanin", "olan", "olanda", "ucun", "hansi", "necedir",
         "edir", "olar", "olarmi", "olmaz", "mene", "menim", "almisam", "isletmek", "demekdir", "hansilardir",
@@ -87,7 +91,6 @@ def detect_intents(message):
 
 
 def wanted_categories(intents):
-    """Leaflet section categories needed for these intents."""
     wanted = set()
     for i in intents:
         if i in CATEGORIES:
@@ -96,25 +99,28 @@ def wanted_categories(intents):
     return wanted
 
 
-def _stem(w):
-    # crude stem; g->q because of Azerbaijani q/ğ alternation (uşaq -> uşağa)
-    return w[:5].replace("g", "q")
+def stem(w):
+    return w[:5].replace("g", "q")      # crude stem; g->q because of the q/ğ alternation (uşaq -> uşağa)
 
 
-def retrieve(chunks, question, brand_key, wanted, max_chunks=4, max_chars=3200):
-    """Best chunks of ONE drug: the sections the question is about + word overlap with the question."""
+def rank_chunks(chunks, question, brand_key, wanted):
+    """All useful chunks of ONE drug, best first: wanted sections + word overlap with the question."""
     drop = set(brand_key.split()) | STOP
-    q_stems = {_stem(w) for w in search_key(question).split() if len(w) > 3 and w not in drop and not w.isdigit()}
+    q_stems = {stem(w) for w in search_key(question).split() if len(w) > 3 and w not in drop and not w.isdigit()}
     scored = []
     for c in chunks:
-        stems = {_stem(w) for w in search_key(c["text"]).split() if len(w) > 3}
-        overlap = len(q_stems & stems)
+        overlap = len(q_stems & {stem(w) for w in search_key(c["text"]).split() if len(w) > 3})
         if c["category"] in wanted:
             scored.append((100 + overlap, c))
         elif overlap >= (2 if wanted else 1):
             scored.append((overlap, c))
     scored.sort(key=lambda x: (-x[0], x[1]["chunk_index"]))
-    picked = sorted((c for _, c in scored[:max_chunks]), key=lambda c: c["chunk_index"])
+    return scored
+
+
+def retrieve(chunks, question, brand_key, wanted, max_chunks=4, max_chars=3200):
+    ranked = rank_chunks(chunks, question, brand_key, wanted)
+    picked = sorted((c for _, c in ranked[:max_chunks]), key=lambda c: c["chunk_index"])
     out, used = [], 0
     for c in picked:
         room = max_chars - used
@@ -126,7 +132,6 @@ def retrieve(chunks, question, brand_key, wanted, max_chunks=4, max_chars=3200):
 
 
 def unknown_only(evidence, wanted):
-    """True when the wanted section only says 'Məlum deyil.' (not known)."""
     w = [c for c in evidence if c["category"] in wanted]
     return bool(w) and all(search_key(c["text"]) == "melum deyil" for c in w)
 
@@ -140,3 +145,54 @@ def excerpt(evidence, wanted, limit=500):
     cut = text[:limit]
     end = max(cut.rfind(". "), cut.rfind("; "))
     return cut[:end + 1] if end > 150 else cut.rsplit(" ", 1)[0] + " …"
+
+
+# ---- OCR text -> chunks (scans and photos have no bold, so headings are matched against known headings) ----
+@lru_cache(maxsize=None)
+def _heading_keys():
+    path = OUT_DIR / "heading_vocabulary.csv"
+    if not path.exists():
+        return ()
+    df = pd.read_csv(path)
+    return tuple({search_key(h) for h, n in zip(df["heading"], df["count"]) if n >= 30})
+
+
+def _is_heading_line(line):
+    k = search_key(line)
+    if not k or len(k.split()) > 14:
+        return False
+    keys = _heading_keys()
+    if keys:
+        return process.extractOne(k, keys, scorer=fuzz.ratio, score_cutoff=88) is not None
+    return len(k.split()) <= 6 and category_of(line) != "other"
+
+
+def split_by_headings(text, page=1, start_index=0):
+    from leaflet_parser import chunk_section
+    sections, cur, buf = [], {"heading": "Ümumi məlumat", "paras": []}, []
+
+    def flush():
+        if buf:
+            cur["paras"].append((page, page, " ".join(buf)))
+            buf.clear()
+
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            flush()
+        elif _is_heading_line(line):
+            flush()
+            if cur["paras"]:
+                sections.append(cur)
+            cur = {"heading": line.rstrip(":"), "paras": []}
+        else:
+            buf.append(line)
+    flush()
+    if cur["paras"]:
+        sections.append(cur)
+    out = []
+    for s in sections:
+        for ch in chunk_section(s):
+            out.append({"section": s["heading"], "page_start": ch["page_start"], "page_end": ch["page_end"],
+                        "text": ch["text"], "chunk_index": start_index + len(out), "category": category_of(s["heading"])})
+    return out

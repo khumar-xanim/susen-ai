@@ -106,11 +106,18 @@ Setup: `ollama pull qwen3.5:4b`. Run: `python scripts\05_chat.py`
 
 
 
-### Step 7 - Quality round (plan 1.13)
+
+### Step 7 - Leaflet-first data, pharmacist persona, checks (plan 1.1, 1.13, 1.14)
 - `llm.py`: model warm-up and 30 min keep-alive; `chatbot.py`: stricter prompt (reuse leaflet wording, no
-  greeting, no claims beyond the leaflet, one Azerbaijani example), "Sadə izah" only when the user asks what a
-  term means, original leaflet text shown under each answer, fallback to the original text when the model gives
-  up although the section exists, same-leaflet strengths are not asked about, catalogue questions answer for all variants.
+  greeting, no claims beyond the leaflet, one Azerbaijani example), 
+- Policy: leaflet first; catalogue only for price and as fallback. If the table columns disagree with the product
+  string (e.g. ATROPIN_SULFAT: columns said tablet), the string wins (`catalogue_names.py`, `*_clean` columns,
+  `outputs/name_column_mismatch.csv`); prices of such rows carry a caution.
+- `08_pdf_identity_check.py` flags PDFs whose first page does not mention the linked drug.
 - `retrieval.py`: q/ğ stem fix (uşaq/uşağa), route questions (içirlər/inyeksiya), age questions, `neceyedir`;
-  `rules.py`: drug-recommendation requests are refused; `07_section_coverage.py` lists unmapped headings.
-- Optional bigger model test: `$env:SUSEN_MODEL="qwen3.5:9b"`.
+  `07_section_coverage.py` lists unmapped headings.
+- `chatbot.py`: warm pharmacist persona ("not a doctor"), strict Azerbaijani prompt with examples, answers only
+  rephrase the leaflet and always show the leaflet file + page + section; `quality.py` checks every answer
+  (foreign script, unsupported sentences/numbers), retries once, falls back to the original leaflet text.
+- Deterministic (no LLM): price, manufacturer/packaging (leaflet first), summaries, safety rules (`rules.py`). drug-recommendation requests are refused; 
+- `06_demo.py --file scripts/manual_questions.txt` -> `outputs/demo_answers.md` for manual review.
