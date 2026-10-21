@@ -121,3 +121,6 @@ Setup: `ollama pull qwen3.5:4b`. Run: `python scripts\05_chat.py`
   (foreign script, unsupported sentences/numbers), retries once, falls back to the original leaflet text.
 - Deterministic (no LLM): price, manufacturer/packaging (leaflet first), summaries, safety rules (`rules.py`). drug-recommendation requests are refused; 
 - `06_demo.py --file scripts/manual_questions.txt` -> `outputs/demo_answers.md` for manual review.
+### Step 8 - Chat window (plan 1.16)
+`streamlit run scripts\app.py`: chat bubbles, model + temperature selector, candidate buttons, source list with
+"show leaflet page" (renders the PDF page), 👍/👎 feedback (`outputs/feedback.jsonl`), photo upload (Step 10).
