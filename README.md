@@ -103,3 +103,14 @@ free-written Azerbaijani, answers that go beyond the leaflet, wrong "no informat
 (tablet) vs leaflet (1 ml solution). Fixes in Step 7.
 
 Setup: `ollama pull qwen3.5:4b`. Run: `python scripts\05_chat.py`
+
+
+
+### Step 7 - Quality round (plan 1.13)
+- `llm.py`: model warm-up and 30 min keep-alive; `chatbot.py`: stricter prompt (reuse leaflet wording, no
+  greeting, no claims beyond the leaflet, one Azerbaijani example), "Sadə izah" only when the user asks what a
+  term means, original leaflet text shown under each answer, fallback to the original text when the model gives
+  up although the section exists, same-leaflet strengths are not asked about, catalogue questions answer for all variants.
+- `retrieval.py`: q/ğ stem fix (uşaq/uşağa), route questions (içirlər/inyeksiya), age questions, `neceyedir`;
+  `rules.py`: drug-recommendation requests are refused; `07_section_coverage.py` lists unmapped headings.
+- Optional bigger model test: `$env:SUSEN_MODEL="qwen3.5:9b"`.

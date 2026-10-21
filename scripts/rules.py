@@ -13,7 +13,8 @@ RULES = [
     ("dose_advice", [r"\b(mene|usagima|korpeme|anama|atama|babama)\b",
                      r"\bnece (mq|ml|tablet|ampul|kapsul|damci|defe|gram)\b|\bhansi doza|\bne qeder (icim|qebul|vurum|atim)"]),
     ("substitution", [r"\b(evez|analoq|alternativ|eynitesirli|eyni tesirli)\w*|yerine basqa|basqa derman|daha yaxsi derman|hansi derman daha"]),
-    ("diagnosis", [r"\b(diaqnoz|tesxis)\w*|hansi derman (icim|icmeliyem|almaliyam)|mene (hansi )?derman (tovsiye|lazim|ver)|menim (xestelik|simptom|sikayet)\w* (nedir|ne ola biler)"]),
+    ("diagnosis", [r"\b(diaqnoz|tesxis)\w*|hansi derman\w*\s+(\w+\s+){0,3}(yaxsi|komek|tesir|uygun|faydali|isleyir|icim|icmeliyem|almaliyam)|mene (hansi )?derman (tovsiye|lazim|ver)|menim (xestelik|simptom|sikayet)\w* (nedir|ne ola biler)"]),
+    ("stop_advice", [r"\b(dayandir\w*|kesmek|kese bilerem|buraxa bilerem)", r"derman|tablet|kapsul|ampul|icmey|qebul"]),
 ]
 
 REPLIES = {
@@ -23,6 +24,8 @@ REPLIES = {
     "dose_advice": "Dozanı dəyişmək və ya fərdi doza seçmək barədə məsləhət verə bilmərəm: doza yaşdan, çəkidən, xəstəlikdən və digər dərmanlardan asılıdır, bunu yalnız həkim və ya əczaçı müəyyən edə bilər. İstəsəniz, təlimat vərəqəsində yazılmış ümumi dozalanma məlumatını göstərə bilərəm.",
     "substitution": "Dərmanı başqası ilə əvəz etmək və ya analoq seçmək barədə məsləhət verə bilmərəm. Bu qərarı həkim və ya əczaçı verməlidir. Seçdiyiniz dərmanın təlimat vərəqəsindəki məlumatı göstərə bilərəm.",
     "diagnosis": "Diaqnoz qoymaq və ya sizin üçün dərman seçmək mənim işim deyil, bunu həkim edir. Konkret bir dərman haqqında təlimat vərəqəsi və kataloq məlumatı verə bilərəm.",
+    "stop_advice": "Dərmanı özbaşına dayandırmaq, kəsmək və ya fasilə vermək barədə məsləhət verə bilmərəm. Bunu mütləq həkiminizlə danışın, çünki bəzi dərmanları qəfil dayandırmaq təhlükəli ola bilər. İstəsəniz, təlimat vərəqəsində bu barədə nə yazıldığına baxa bilərəm.",
+
 }
 
 

@@ -31,26 +31,30 @@ SECTION_PATTERNS = [
 CATEGORIES = {name for name, _ in SECTION_PATTERNS}
 
 INTENT_PATTERNS = [
-    ("price", r"qiymet|nece manat|\bazn\b|bahadir|ucuzdur"),
+    ("price", r"qiymet|neceyedir|nece manat|nece pul|\bazn\b|bahadir|ucuzdur"),
     ("maker", r"istehsal|hansi sirket|hansi olke"),
     ("package", r"qablasdirma|qutuda|nece (eded|tablet|ampul|kapsul) (var|olur)"),
+    ("availability", r"hansi aptek|harada (tap|sat|al)|stokda|aptekde (var|tap)"),
     ("contraindications", r"eks gosteris|olarmi|olar mi|olmaz|bilmez|bilmerem|bilerem|bilermi|qadagan|etmemeli|isletmek|icmek"),
     ("side_effects", r"yan tesir|elave tesir|yan effekt|zerer|reaksiya|a?l+erg"),
     ("dosage", r"\bdoza|nece (qebul|ic|istifade|vur)|gunde nece|nece defe|qebul qaydasi|istifade qaydasi|yemekden (evvel|sonra)|ac qarina|tox qarina"),
+    ("route", r"icirler|icilir|vurulur|vururlar|inyeksiya ile|derialti|ezelede|damara|damardan|hansi formada|hansi sekilde"),
     ("indications", r"ne ucun|hansi (xestelik|hallarda|hal)\w*|ise yarayir|istifadesine gosteris|ne vaxt istifade"),
     ("interactions", r"qarsiliqli|birlikde|eyni vaxtda|ile birge|alkoqol|alkohol|spirtli|basqa derman"),
     ("pregnancy", r"hamile|emzir|laktasiya"),
-    ("pediatric", r"usaq|korpe|pediatr"),
+    ("pediatric", r"usa[qg]|korpe|pediatr|\d+ ?(yasli|yasinda|ayliq)"),
     ("overdose", r"doza hedd|artiq (icmis|qebul)|heddinden artiq|zeherlen|overdoz"),
     ("storage", r"saxla|soyuducu"),
     ("shelf_life", r"yararli|son istifade|bitme tarix|vaxti kecib"),
     ("composition", r"terkib|tesiredici madde|nelerden ibaret|icinde ne"),
     ("driving", r"masin sur|surucu|neqliyyat"),
     ("special", r"xususi gosteris|ehtiyat tedbir"),
-    ("dispensing", r"resept|receptsiz|resepsiz|aptek"),
+    ("dispensing", r"resept|receptsiz|resepsiz|aptekden buraxil"),
     ("explain", r"ne demek|hansilardir|izah|aciqla|menasi|sade dille|basa dus"),
 ]
-CATALOGUE_INTENTS = {"price", "maker", "package"}
+CATALOGUE_INTENTS = {"price", "maker", "package", "availability"}
+# some questions also need neighbouring sections
+EXTRA_SECTIONS = {"pediatric": {"dosage", "contraindications"}, "route": {"dosage", "form"}}
 
 STOP = {"ve", "ile", "nedir", "derman", "dermani", "dermanin", "olan", "olanda", "ucun", "hansi", "necedir",
         "edir", "olar", "olarmi", "olmaz", "mene", "menim", "almisam", "isletmek", "demekdir", "hansilardir",
@@ -82,14 +86,28 @@ def detect_intents(message):
     return {name for name, pat in INTENT_PATTERNS if re.search(pat, key)}
 
 
-def retrieve(chunks, question, brand_key, intents, max_chunks=4, max_chars=3200):
+def wanted_categories(intents):
+    """Leaflet section categories needed for these intents."""
+    wanted = set()
+    for i in intents:
+        if i in CATEGORIES:
+            wanted.add(i)
+        wanted |= EXTRA_SECTIONS.get(i, set())
+    return wanted
+
+
+def _stem(w):
+    # crude stem; g->q because of Azerbaijani q/ğ alternation (uşaq -> uşağa)
+    return w[:5].replace("g", "q")
+
+
+def retrieve(chunks, question, brand_key, wanted, max_chunks=4, max_chars=3200):
     """Best chunks of ONE drug: the sections the question is about + word overlap with the question."""
-    wanted = intents & CATEGORIES
     drop = set(brand_key.split()) | STOP
-    q_stems = {w[:5] for w in search_key(question).split() if len(w) > 3 and w not in drop and not w.isdigit()}
+    q_stems = {_stem(w) for w in search_key(question).split() if len(w) > 3 and w not in drop and not w.isdigit()}
     scored = []
     for c in chunks:
-        stems = {w[:5] for w in search_key(c["text"]).split() if len(w) > 3}
+        stems = {_stem(w) for w in search_key(c["text"]).split() if len(w) > 3}
         overlap = len(q_stems & stems)
         if c["category"] in wanted:
             scored.append((100 + overlap, c))
@@ -107,7 +125,18 @@ def retrieve(chunks, question, brand_key, intents, max_chunks=4, max_chars=3200)
     return out
 
 
-def unknown_only(evidence, intents):
+def unknown_only(evidence, wanted):
     """True when the wanted section only says 'Məlum deyil.' (not known)."""
-    w = [c for c in evidence if c["category"] in intents]
+    w = [c for c in evidence if c["category"] in wanted]
     return bool(w) and all(search_key(c["text"]) == "melum deyil" for c in w)
+
+
+def excerpt(evidence, wanted, limit=500):
+    """Original leaflet text (first matching chunk), cut at a sentence end."""
+    pick = [c for c in evidence if c["category"] in wanted] or evidence
+    text = pick[0]["text"]
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    end = max(cut.rfind(". "), cut.rfind("; "))
+    return cut[:end + 1] if end > 150 else cut.rsplit(" ", 1)[0] + " …"

@@ -20,7 +20,7 @@ class ProductIndex:
         df = pd.read_csv(path, dtype=str).fillna("")
         df["brand"] = df[COL_NAME].str.split(",").str[0].str.strip()
         df["brand_key"] = df["brand"].map(search_key)
-        df["dose_nums"] = df["Dozası"].map(_numbers)
+        df["dose_nums"] = df["dose_clean"].map(_numbers)
         self.df = df
         self.rows_by_key = {}      # full brand and first word of the brand -> row numbers
         for i, key in enumerate(df["brand_key"]):
@@ -58,8 +58,8 @@ class ProductIndex:
             idx = {i for i in idx if self.df.at[i, "dose_nums"] & wanted} or idx
 
         rows = self.df.loc[sorted(idx)].head(max_candidates)
-        cands = [{"id": r[COL_ID], "name": r["brand"], "form": r["form_clean"], "dose": r["Dozası"],
-                  "maker": r["İstehsalçı şirkət"], "price_azn": r["price_azn"],
+        cands = [{"id": r[COL_ID], "name": r["brand"], "form": r["form_clean"], "dose": r["dose_clean"],
+                  "maker": r["maker_clean"], "price_azn": r["price_azn"],
                   "has_leaflet": r["has_leaflet"] == "True"} for _, r in rows.iterrows()]
         return {"status": "found" if len(idx) == 1 else "ambiguous",
                 "candidates": cands, "n_total": len(idx)}

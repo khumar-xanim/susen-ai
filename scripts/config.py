@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import hashlib
 
 ROOT = Path(__file__).resolve().parent.parent
 EXCEL = ROOT /"data"/ "reseptim_dermanlar.xlsx"
@@ -28,3 +29,13 @@ CHUNKS_FILE = OUT_DIR / "chunks.jsonl"
 LLM_PROVIDER = os.getenv("SUSEN_PROVIDER", "ollama")
 LLM_MODEL = os.getenv("SUSEN_MODEL", "qwen3.5:4b")
 LLM_OPTIONS = {"temperature": 0.1, "top_p": 0.9, "num_ctx": 4096, "num_predict": 600}
+
+
+TESSDATA_DIR = ROOT / "tessdata"
+EVAL_DIR = OUT_DIR / "eval"
+EVAL_DIR.mkdir(exist_ok=True)
+
+
+def split_of(med_id):
+    """Deterministic dev/test split BY DRUG (20 % test): tune on dev, report on test."""
+    return "test" if int(hashlib.md5(med_id.encode()).hexdigest(), 16) % 5 == 0 else "dev"
