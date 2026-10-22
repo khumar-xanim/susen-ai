@@ -29,34 +29,35 @@ SECTION_PATTERNS = [
     ("dispensing", r"apekden|aptekden|apteklerden"),
     ("form", r"buraxilis forma"),
     ("manufacturer_info", r"istehsal|qeydiyyat|distribyuter|lisenziya|unvan|numayendelik|iradlari qebul|qablasdirici|marketinq icazesi|selahiyyetli"),
+    ("pharm_group", r"farmakoterapevtik"),
     ("pharmacology", r"farmako|mikroorqanizm|aerob|anaerob|qrammusbet|qrammenfi"),
 ]
 CATEGORIES = {name for name, _ in SECTION_PATTERNS}
-
 INTENT_PATTERNS = [
-    ("price", r"qiymet|neceyedir|nece manat|nece pul|\bazn\b|bahadir|ucuzdur"),
-    ("maker", r"istehsal|hansi sirket|hansi olke"),
+    ("price", r"qiymet|neceyedir|nece manat|nece pul|\bazn\b|bahadir|ucuzdur|\bprice\b|\bcost\b"),
+    ("maker", r"istehsal|hansi sirket|hansi olke|manufactur|which company|made by"),
     ("package", r"qablasdirma|qutuda|nece (eded|tablet|ampul|kapsul) (var|olur)"),
     ("availability", r"hansi aptek|harada (tap|sat|al)|stokda"),
-    ("summary", r"xulase|qisa mezmun|qisaca|ne haqqindadir|haqqinda melumat|barede melumat"),
-    ("contraindications", r"eks gosteris|olarmi|olar mi|olmaz|bilmez|bilmerem|bilerem|bilermi|qadagan|etmemeli|isletmek|icmek"),
-    ("side_effects", r"yan tesir|elave tesir|yan effekt|zerer|reaksiya|a?l+erg"),
-    ("dosage", r"\bdoza|nece (qebul|ic|istifade|vur)|gunde nece|nece defe|qebul qaydasi|istifade qaydasi|yemekden (evvel|sonra)|ac qarina|tox qarina"),
+    ("summary", r"xulase|qisa mezmun|qisa melumat|qisaca|ne haqqindadir|haqqinda melumat|barede melumat|summary|overview|tell me about"),
+    ("contraindications", r"eks gosteris|olarmi|olar mi|olmaz|bilmez|bilmerem|bilerem|bilermi|qadagan|etmemeli|isletmek|icmek|contraindicat|who should not|cannot take"),
+    ("side_effects", r"yan tesir|elave tesir|yan effekt|zerer|reaksiya|a?l+erg|side effect|adverse"),
+    ("dosage", r"\bdoza|nece (qebul|ic|istifade|vur)|gunde nece|nece defe|qebul qaydasi|istifade qaydasi|yemekden (evvel|sonra)|ac qarina|tox qarina|dosage|how to take|how often|how much"),
     ("route", r"icirler|icilir|vurulur|vururlar|inyeksiya ile|derialti|ezelede|damara|damardan|hansi formada|hansi sekilde"),
-    ("indications", r"ne ucun|hansi (xestelik|hallarda|hal)\w*|ise yarayir|istifadesine gosteris|ne vaxt istifade"),
-    ("interactions", r"qarsiliqli|birlikde|eyni vaxtda|ile birge|alkoqol|alkohol|spirtli|basqa derman"),
-    ("pregnancy", r"hamile|emzir|laktasiya"),
-    ("pediatric", r"usa[qg]|korpe|pediatr|\d+ ?(yasli|yasinda|ayliq)"),
+    ("indications", r"ne ucun|hansi (xestelik|hallarda|hal)\w*|ise yarayir|istifadesine gosteris|ne vaxt istifade|used for|indication"),
+    ("interactions", r"qarsiliqli|birlikde|eyni vaxtda|ile birge|alkoqol|alkohol|spirtli|basqa derman|interact|with alcohol"),
+    ("pregnancy", r"hamile|emzir|laktasiya|pregnan|breast ?feed|lactation"),
+    ("pediatric", r"usa[qg]|korpe|pediatr|\d+ ?(yasli|yasinda|ayliq)|children"),
     ("overdose", r"doza hedd|artiq (icmis|qebul)|heddinden artiq|zeherlen|overdoz"),
-    ("storage", r"saxla|soyuducu"),
-    ("shelf_life", r"yararli|son istifade|bitme tarix|vaxti kecib"),
-    ("composition", r"terkib|tesiredici madde|nelerden ibaret|icinde ne"),
+    ("storage", r"saxla|soyuducu|\bstorage\b|\bstore\b"),
+    ("shelf_life", r"yararli|son istifade|bitme tarix|vaxti kecib|expir"),
+    ("composition", r"terkib|tesiredici madde|nelerden ibaret|icinde ne|ingredient"),
     ("driving", r"masin sur|surucu|neqliyyat"),
     ("special", r"xususi gosteris|ehtiyat tedbir"),
     ("dispensing", r"resept|receptsiz|resepsiz|aptekden buraxil"),
-    ("explain", r"ne demek|hansilardir|izah|aciqla|menasi|sade dille|basa dus"),
+    ("explain", r"ne demek|hansilardir|izah|aciqla|menasi|sade dille|basa dus|what does .* mean"),
 ]
-SUMMARY_SECTIONS = ["indications", "contraindications", "dosage", "side_effects", "pregnancy", "storage"]
+SUMMARY_SECTIONS = ["pharm_group", "pharmacology", "indications", "contraindications", "dosage"]
+
 EXTRA_SECTIONS = {"pediatric": {"dosage", "contraindications"}, "route": {"dosage", "form"},
                   "maker": {"manufacturer_info"}, "package": {"form"}, "summary": set(SUMMARY_SECTIONS)}
 
@@ -103,10 +104,30 @@ def stem(w):
     return w[:5].replace("g", "q")      # crude stem; g->q because of the q/ğ alternation (uşaq -> uşağa)
 
 
+EXPAND = {  # query expansion: words the user types -> words the leaflet uses
+    "emzir": "ana sudu laktasiya", "sud": "ana sudu laktasiya", "gunes": "gunes isigi fotohessasliq ultrabenovseyi",
+    "isiq": "gunes isigi fotohessasliq", "alkoqol": "alkoqol spirt", "alkohol": "alkoqol spirt",
+    "dayandir": "dayandirilmasi kesilmesi", "yarimciq": "dayandirilmasi", "surucu": "neqliyyat masin mexanizm",
+    "masin": "neqliyyat masin mexanizm", "hamile": "hamilelik", "usaq": "usaq korpe yas", "yasli": "yas yaslilar",
+    "breast": "ana sudu laktasiya", "sunlight": "gunes isigi fotohessasliq", "pregnan": "hamilelik",
+    "alcohol": "alkoqol spirt", "driv": "neqliyyat masin",
+}
+
+
+def _qstems(question, brand_key=""):
+    drop = set(brand_key.split()) | STOP
+    words = [w for w in search_key(question).split() if len(w) > 3 and w not in drop and not w.isdigit()]
+    stems = {stem(w) for w in words}
+    for w in words:
+        for k, extra in EXPAND.items():
+            if w.startswith(k):
+                stems |= {stem(x) for x in extra.split()}
+    return stems
+
+
 def rank_chunks(chunks, question, brand_key, wanted):
     """All useful chunks of ONE drug, best first: wanted sections + word overlap with the question."""
-    drop = set(brand_key.split()) | STOP
-    q_stems = {stem(w) for w in search_key(question).split() if len(w) > 3 and w not in drop and not w.isdigit()}
+    q_stems = _qstems(question, brand_key)
     scored = []
     for c in chunks:
         overlap = len(q_stems & {stem(w) for w in search_key(c["text"]).split() if len(w) > 3})
@@ -117,8 +138,7 @@ def rank_chunks(chunks, question, brand_key, wanted):
     scored.sort(key=lambda x: (-x[0], x[1]["chunk_index"]))
     return scored
 
-
-def retrieve(chunks, question, brand_key, wanted, max_chunks=4, max_chars=3200):
+def retrieve(chunks, question, brand_key, wanted, max_chunks=3, max_chars=2800):
     ranked = rank_chunks(chunks, question, brand_key, wanted)
     picked = sorted((c for _, c in ranked[:max_chunks]), key=lambda c: c["chunk_index"])
     out, used = [], 0
@@ -136,16 +156,23 @@ def unknown_only(evidence, wanted):
     return bool(w) and all(search_key(c["text"]) == "melum deyil" for c in w)
 
 
-def excerpt(evidence, wanted, limit=500):
-    """Original leaflet text (first matching chunk), cut at a sentence end."""
-    pick = [c for c in evidence if c["category"] in wanted] or evidence
-    text = pick[0]["text"]
-    if len(text) <= limit:
-        return text
-    cut = text[:limit]
-    end = max(cut.rfind(". "), cut.rfind("; "))
-    return cut[:end + 1] if end > 150 else cut.rsplit(" ", 1)[0] + " …"
+def excerpt(evidence, wanted, question="", limit=450):
+    """The sentences of the original leaflet that match the question best. Returns (text, chunk)."""
+    q = _qstems(question)
 
+    def score(text):
+        return len(q & {stem(w) for w in search_key(text).split() if len(w) > 3})
+
+    pool = [c for c in evidence if c["category"] in wanted] or evidence
+    c = max(pool, key=lambda c: (score(c["text"]), -c["chunk_index"]))
+    sents = re.split(r"(?<=[.!?;])\s+", c["text"])
+    start = max(range(len(sents)), key=lambda i: (score(sents[i]), -i))
+    out = ""
+    for s in sents[start:]:
+        if out and len(out) + len(s) > limit:
+            break
+        out += (" " if out else "") + s
+    return (out if len(out) <= limit + 150 else out[:limit].rsplit(" ", 1)[0] + " …"), c
 
 # ---- OCR text -> chunks (scans and photos have no bold, so headings are matched against known headings) ----
 @lru_cache(maxsize=None)

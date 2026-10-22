@@ -62,3 +62,29 @@ def ocr_bytes(data):
     if img is None:
         raise ValueError("Şəkil formatı tanınmadı")
     return ocr_array(img)
+
+def _gray(img_bgr):
+    g = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    f = 2000 / max(g.shape)
+    g = cv2.resize(g, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC if f > 1 else cv2.INTER_AREA)
+    return cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(g)
+
+
+def read_words(img_bgr, psm=11):
+    """Words with their size: the drug name is usually the biggest text on a box or leaflet."""
+    d = pytesseract.image_to_data(_gray(img_bgr), lang="aze", config=f"--oem 1 --psm {psm}",
+                                  output_type=pytesseract.Output.DICT)
+    words = []
+    for i, t in enumerate(d["text"]):
+        t = t.strip()
+        if t and float(d["conf"][i]) >= 40:
+            words.append({"text": t, "conf": float(d["conf"][i]), "h": int(d["height"][i])})
+    return words
+
+
+def ocr_all(data):
+    """Photo bytes -> (text read like a document, words read like a package with their sizes)."""
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise ValueError("Şəkil formatı tanınmadı")
+    return ocr_array(img), read_words(img)

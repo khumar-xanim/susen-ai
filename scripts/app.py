@@ -50,28 +50,27 @@ with st.sidebar:
         bot.reset()
         st.rerun()
     st.divider()
-    st.subheader("📷 Təlimat şəkli")
-    files = st.file_uploader("Aldığınız dərmanın təlimatının şəkli", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+    st.subheader("📷 Dərmanın şəkli")
+    files = st.file_uploader("Qutunun və ya təlimatın şəkli", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
     if files and st.button("Şəkli oxu"):
         if any(f.size > MAX_IMAGE_BYTES for f in files):
             st.error("Şəkil çox böyükdür (maksimum 8 MB).")
         else:
             with st.spinner("Şəkil oxunur…"):
                 try:
-                    from ocr import ocr_bytes
-                    texts = [ocr_bytes(f.getvalue()) for f in files]
-                    st.session_state.photo_info = bot.load_photo(texts)
-                    st.session_state.photo_text = "\n\n".join(texts)
+                    info = bot.identify_photo([f.getvalue() for f in files])
+                    st.session_state.photo_text = info["text"]
+                    st.session_state.messages.append({"role": "assistant", "content": info["message"], "sources": [],
+                                                      "status": info["status"], "question": "[şəkil]",
+                                                      "candidates": info["candidates"]})
                 except Exception as e:
                     st.error("Şəkli oxumaq alınmadı." + (f" {e}" if ADMIN else " Daha aydın şəkil yükləməyi yoxlayın."))
-    if bot.photo:
-        info = st.session_state.get("photo_info", {})
-        st.success(f"Şəkil rejimi aktivdir. Tanınan dərman: {info.get('drug') or 'tanınmadı'}")
+    if st.session_state.get("photo_text"):
         with st.expander("Oxunan mətn (səhvləri yoxlayın)"):
-            st.text(st.session_state.get("photo_text", ""))
-        if st.button("Şəkli sil"):
-            bot.photo = None
-            st.rerun()
+            st.text(st.session_state.photo_text)
+    if bot.photo and st.button("Şəkil rejimini söndür"):
+        bot.photo = None
+        st.rerun()
 
 if "warm" not in st.session_state:
     with st.spinner("Model yüklənir (ilk dəfə bir az çəkə bilər)…"):
@@ -82,29 +81,31 @@ if "warm" not in st.session_state:
             st.error("Model hazırda əlçatan deyil." + (f" {e}" if ADMIN else ""))
 
 if not st.session_state.messages:
-    st.info("Salam! Dərmanın adını və sualınızı yazın, məsələn: «Abizol 10 mq yan təsirləri nədir?» "
-            "Hər cavabda hansı təlimat vərəqəsindən və hansı səhifədən götürüldüyünü göstərirəm.")
+    st.info("Salam! Dərmanın adını və sualınızı yazın, ya da qutunun şəklini yükləyin. Cavabın hansı vərəqədən və hansı səhifədən götürüldüyünü göstərirəm.")
 
 for i, m in enumerate(st.session_state.messages):
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
         if m["role"] == "assistant":
-            for j, s in enumerate(m.get("sources", [])):
-                st.caption("📄 " + s["label"])
+            if m.get("excerpt"):
+                with st.expander("Vərəqədən orijinal mətn"):
+                    st.write(m["excerpt"]["text"])
+                    st.caption(m["excerpt"]["label"])
+            for j, s in enumerate(m.get("sources", [])[:1]):
                 if s["file"].endswith(".pdf") and st.toggle("Səhifəni göstər", key=f"pg{i}_{j}"):
                     try:
                         st.image(render_page(s["file"], s["page"]), caption=s["label"])
                     except Exception:
                         st.warning("Səhifə göstərilmədi.")
-            c1, c2, _ = st.columns([1, 1, 8])
-            if c1.button("👍", key=f"up{i}"):
-                save_feedback(m, 1)
-            if c2.button("👎", key=f"dn{i}"):
-                save_feedback(m, 0)
+            if m.get("question") != "[şəkil]":
+                c1, c2, _ = st.columns([1, 1, 8])
+                if c1.button("👍", key=f"up{i}"):
+                    save_feedback(m, 1)
+                if c2.button("👎", key=f"dn{i}"):
+                    save_feedback(m, 0)
 
 last = st.session_state.messages[-1] if st.session_state.messages else None
 if last and last["role"] == "assistant" and last.get("status") == "ambiguous":
-    st.write("Seçin:")
     for k, c in enumerate(last.get("candidates", [])):
         if st.button(f"{c['name']} — {c['form']}, {c['dose'] or 'doza göstərilməyib'}", key=f"cand{k}"):
             st.session_state.queued = f"{c['name']} {c['dose']}"
@@ -120,5 +121,6 @@ if prompt:
     with st.spinner("Cavab hazırlanır…"):
         r = bot.ask(prompt)
     st.session_state.messages.append({"role": "assistant", "content": r["reply"], "sources": r.get("sources", []),
-                                      "status": r["status"], "question": prompt, "candidates": r.get("candidates", [])})
+                                      "status": r["status"], "question": prompt, "candidates": r.get("candidates", []),
+                                      "excerpt": r.get("excerpt")})
     st.rerun()

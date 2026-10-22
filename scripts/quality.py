@@ -6,7 +6,7 @@ from retrieval import stem
 
 FOREIGN = re.compile(r"[\u0400-\u04FF\u0600-\u06FF\u3040-\u30FF\u4E00-\u9FFF]")   # Cyrillic, Arabic, Japanese, Chinese
 NUM = re.compile(r"\d+(?:[.,]\d+)?")
-ABSTAIN = re.compile(r"melumat (tapmadim|yoxdur)")
+ABSTAIN = re.compile(r"melumat\w* (yoxdur|tapmad|verilmey|yazilmay|qeyd olunmay|qeyd edilmey)|bu bar\w* .{0,40}(yazilmay|qeyd)|does not (say|mention)|not mentioned")
 _TEMPLATE = ("Təlimat vərəqəsinə görə bu dərmanı bu hallarda istifadə etmək olmaz göstərilib yazılıb əlavə təsirlər "
              "bunlardır tez-tez nadir hallarda həkim əczaçı qəbul qaydası doza belə")
 COMMON = {stem(w) for w in search_key(_TEMPLATE).split() if len(w) > 3}

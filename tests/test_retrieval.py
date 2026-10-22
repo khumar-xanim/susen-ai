@@ -15,7 +15,7 @@ def test_price_variants():
 
 
 def test_drug_recommendation_refused():
-    assert check("hansi derman bas agrima yaxsi tesir eder?")[0] == "diagnosis"
+    assert check("hansi derman bas agrima yaxsi tesir eder?")[0] == "choose_drug"
 
 def test_summary_and_maker_intents():
     assert "summary" in detect_intents("abazaklar haqqinda qisa melumat ver")

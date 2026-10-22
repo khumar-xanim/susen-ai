@@ -21,3 +21,10 @@ def search_key(text):
     text = "".join(c for c in text if not unicodedata.combining(c))
     text = re.sub(r"[\W_]+", " ", text)
     return re.sub(r"\s+", " ", text).strip()
+SKEL = str.maketrans({"c": "k", "w": "v", "q": "k", "y": "i"})
+
+
+def skel(text):
+    """Spelling skeleton for foreign brand names written in different ways (TobraDex / Tobradeks, Ozempic / Ozempik)."""
+    t = text.replace("x", "ks").replace("ph", "f").translate(SKEL)
+    return re.sub(r"(.)\1+", r"\1", t)

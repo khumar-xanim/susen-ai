@@ -46,8 +46,9 @@ for med_id in ids:
         pix = page.get_pixmap(dpi=150)
     img = np.frombuffer(pix.samples, np.uint8).reshape(pix.height, pix.width, pix.n)
     img = cv2.cvtColor(img, cv2.COLOR_RGBA2BGR if pix.n == 4 else cv2.COLOR_RGB2BGR)
-    text = " ".join(ocr_array(degrade(img)).split())
-    res = index.find(" ".join(text.split()[:60]))
+    raw = ocr_array(degrade(img))
+    text = " ".join(raw.split())
+    res = index.identify(raw)
     rows.append({"id": med_id, "cer_raw": Levenshtein.normalized_distance(truth, text),
                  "cer_folded": Levenshtein.normalized_distance(search_key(truth), search_key(text)),
                  "drug_identified": med_id in {c["id"] for c in res["candidates"]}})

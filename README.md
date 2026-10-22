@@ -149,3 +149,11 @@ AMU lecture slides/DOCX (local, not in Git, permission needed for public use) + 
 (English; credit: "Source: MedlinePlus, National Library of Medicine"). `15_kb_build.py` (ingest + bge-m3
 embeddings via Ollama), `kb.py`, `16_kb_search.py` (score check). Answers use ONLY retrieved passages, show the
 source excerpt, and say "not found in reliable sources" when nothing is close enough (`MIN_SCORE`).
+### Step 12 - Photos, natural answers, safety triage
+- Photo: the biggest text and bracketed ingredients are read (`ocr.read_words`, `photo.py`), punctuation cleaned,
+  matched to the catalogue by spelling skeleton (TobraDex ~ TOBRADEKS); several matches -> the user chooses.
+- Answers are written by the model (no examples, no fixed openers/closers, no repeated disclaimer); up to 3
+  generation attempts, never an apology/copy fallback; one short source line; summary = 5 leaflet titles.
+- `rules.py`: triage before product matching (overdose, self-injection, harm, misuse, sedatives...). REPLY TEXTS
+  NEED REVIEW BY A DOCTOR/PHARMACIST. `tests/test_triage.py` encodes the manual review questions.
+- `18_consistency.py` measures how often a question is answered across repeated runs.

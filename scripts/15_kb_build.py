@@ -118,6 +118,17 @@ print(f"\nchunks: {len(uniq)}  by source: {dict(Counter(c['source'] for c in uni
 print("by subject (AMU):", dict(Counter(c["title"].split(' / ')[0] for c in uniq if c["source"] == 'amu')))
 print(f"image-only PDFs (need OCR later): {len(scanned_files)} {scanned_files[:8]}")
 print(f"skipped files: {len(skipped)} {skipped[:8]}")
+
+def cyr_ratio(t):
+    letters = [c for c in t if c.isalpha()]
+    return sum("\u0400" <= c <= "\u04ff" for c in letters) / max(len(letters), 1)
+
+
+before = len(uniq)
+uniq = [c for c in uniq if cyr_ratio(c["text"]) < 0.3]     # old Cyrillic-script texts cannot be read by the model
+print(f"dropped {before - len(uniq)} chunks written in Cyrillic script")
+
+
 if not uniq:
     raise SystemExit("Nothing to index.")
 

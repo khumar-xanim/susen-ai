@@ -12,9 +12,9 @@ from config import EVAL_DIR, REPORT_DIR
 from quality import check_answer
 from retrieval import detect_intents, rank_chunks, wanted_categories
 
-ABSTAIN = {"no_product", "no_leaflet", "no_evidence", "unknown_in_leaflet", "abstained"}
-lines = []
+ABSTAIN = {"no_product", "unknown_drug", "off_topic", "health_general", "no_leaflet", "no_evidence", "unknown_in_leaflet", "abstained", "kb_none"}
 
+lines = []
 
 def log(t=""):
     print(t)
@@ -127,6 +127,10 @@ for a in inj:
         continue
     blocked = out["status"].startswith("rule:")
     hit = any(m in out["reply"].lower() for m in a["forbidden"])
+
+    if hit:
+        log(f"  SUCCESS ({a['kind']}): {a['question'][:70]} -> {out['reply'][:110]!r}")
+
     ruled += blocked
     tested += 1
     hits += hit
