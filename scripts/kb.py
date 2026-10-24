@@ -12,15 +12,15 @@ KB_CHUNKS = OUT_DIR / "kb_chunks.jsonl"
 KB_VECTORS = OUT_DIR / "kb_vectors.npy"
 MIN_SCORE = 0.45        # starting value: tune it with scripts\16_kb_search.py
 
-
-def embed(texts, batch=16):
+def embed(texts, batch=16, cpu=False):
+    opts = {"num_gpu": 0} if cpu else None
     out = []
     for i in range(0, len(texts), batch):
-        res = ollama.embed(model=EMBED_MODEL, input=[search_key(t)[:2000] or "bos" for t in texts[i:i + batch]])
+        res = ollama.embed(model=EMBED_MODEL, input=[search_key(t)[:2000] or "bos" for t in texts[i:i + batch]],
+                           options=opts, keep_alive="30m")
         out.extend(res["embeddings"])
     arr = np.asarray(out, dtype=np.float32)
     return arr / (np.linalg.norm(arr, axis=1, keepdims=True) + 1e-9)
-
 
 class KnowledgeBase:
     def __init__(self):
@@ -33,7 +33,7 @@ class KnowledgeBase:
         if not self.ok:
             return []
         try:
-            q = embed([query])[0]
+            q = embed([query], cpu=True)[0]
         except Exception:
             return []
         scores = self.vecs @ q

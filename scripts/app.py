@@ -1,7 +1,9 @@
 """SUSEN AI chat window. Run: python -m streamlit run scripts\\app.py   (admin view: $env:SUSEN_ADMIN="1")"""
 import json
 from datetime import datetime
-
+import copy
+import hmac
+import os
 import pymupdf
 import streamlit as st
 
@@ -13,6 +15,13 @@ MAX_QUESTIONS = 60            # per browser session
 MAX_IMAGE_BYTES = 8_000_000
 
 st.set_page_config(page_title="SUSEN AI", page_icon="💊")
+ACCESS_CODE = os.getenv("SUSEN_ACCESS_CODE", "")
+if ACCESS_CODE and not st.session_state.get("granted"):
+    code = st.text_input("Giriş kodu", type="password")
+    if code and hmac.compare_digest(code, ACCESS_CODE):
+        st.session_state.granted = True
+        st.rerun()
+    st.stop()
 st.title("💊 SUSEN AI")
 st.caption("Dərman təlimat vərəqələri üzrə məlumat köməkçisi. Mən həkim və ya əczaçı deyiləm: məlumatı rəsmi "
            "təlimat vərəqələrindən və etibarlı mənbələrdən götürürəm.")
@@ -38,7 +47,10 @@ def save_feedback(msg, value):
     st.toast("Təşəkkür edirik!")
 
 
-bot = get_bot()
+if "bot" not in st.session_state:               # each visitor gets their own conversation; data is shared
+    st.session_state.bot = copy.copy(get_bot())
+    st.session_state.bot.reset()
+bot = st.session_state.bot
 st.session_state.setdefault("messages", [])
 
 with st.sidebar:

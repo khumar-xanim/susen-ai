@@ -124,22 +124,29 @@ def _qstems(question, brand_key=""):
                 stems |= {stem(x) for x in extra.split()}
     return stems
 
+DENSE_MIN = 0.50      # a chunk is also considered when its MEANING is close; tune with scripts\20_dense_check.py
+DENSE_W = 40
 
-def rank_chunks(chunks, question, brand_key, wanted):
-    """All useful chunks of ONE drug, best first: wanted sections + word overlap with the question."""
+
+def rank_chunks(chunks, question, brand_key, wanted, dense=None):
+    """All useful chunks of ONE drug, best first: wanted sections + shared words + embedding similarity."""
     q_stems = _qstems(question, brand_key)
+    thr = DENSE_MIN + (0.10 if wanted else 0.0)
     scored = []
     for c in chunks:
         overlap = len(q_stems & {stem(w) for w in search_key(c["text"]).split() if len(w) > 3})
+        d = (dense or {}).get(c["chunk_index"], 0.0)
+        bonus = DENSE_W * max(d - 0.30, 0.0)
         if c["category"] in wanted:
-            scored.append((100 + overlap, c))
-        elif overlap >= (2 if wanted else 1):
-            scored.append((overlap, c))
+            scored.append((100 + overlap + bonus, c))
+        elif overlap >= (2 if wanted else 1) or d >= thr:
+            scored.append((overlap + bonus, c))
     scored.sort(key=lambda x: (-x[0], x[1]["chunk_index"]))
     return scored
 
-def retrieve(chunks, question, brand_key, wanted, max_chunks=3, max_chars=2800):
-    ranked = rank_chunks(chunks, question, brand_key, wanted)
+
+def retrieve(chunks, question, brand_key, wanted, max_chunks=3, max_chars=2800, dense=None):
+    ranked = rank_chunks(chunks, question, brand_key, wanted, dense)
     picked = sorted((c for _, c in ranked[:max_chunks]), key=lambda c: c["chunk_index"])
     out, used = [], 0
     for c in picked:

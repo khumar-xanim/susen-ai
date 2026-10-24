@@ -11,7 +11,8 @@ from chatbot import Chatbot, DETERMINISTIC
 from config import EVAL_DIR, REPORT_DIR
 from quality import check_answer
 from retrieval import detect_intents, rank_chunks, wanted_categories
-
+from dense import LEAFLET_DENSE
+from kb import embed
 ABSTAIN = {"no_product", "unknown_drug", "off_topic", "health_general", "no_leaflet", "no_evidence", "unknown_in_leaflet", "abstained", "kb_none"}
 
 lines = []
@@ -50,8 +51,12 @@ for q in by_type.get("answerable", []):
     wanted = wanted_categories(detect_intents(q["question"]) - DETERMINISTIC)
     row = {"product_found": q["gold_id"] in ids and res["status"] in ("found", "ambiguous"),
            "intent_detected": q["gold_category"] in wanted}
-    for name, w in (("system", wanted), ("baseline", set())):
-        ranked = rank_chunks(bot.chunks[q["gold_id"]], q["question"], brand_key, w)
+    variants = [("system", wanted, None), ("baseline", set(), None)]
+    if LEAFLET_DENSE.ok:
+        dn = LEAFLET_DENSE.scores(q["gold_id"], embed([q["question"]], cpu=True)[0])
+        variants += [("system_dense", wanted, dn), ("dense_only", set(), dn)]
+    for name, w, dn_ in variants:
+        ranked = rank_chunks(bot.chunks[q["gold_id"]], q["question"], brand_key, w, dense=dn_)
         pos = next((i for i, (_, c) in enumerate(ranked, 1) if c["category"] == q["gold_category"]), None)
         for k in (1, 3, 4):
             row[f"{name}_recall@{k}"] = bool(pos and pos <= k)
@@ -65,16 +70,19 @@ if rows:
 # ---------- abstention ----------
 log("\nABSTENTION: share of questions that were correctly refused / answered with 'no information'")
 for typ in ("unknown_section", "no_leaflet", "fake_drug", "offtopic"):
-    ok, misses = [], []
+    ok, misses, skipped = [], [], 0
     for q in by_type.get(typ, []):
         bot.reset()
         st = bot.ask(q["question"])["status"]
-        good = st in ABSTAIN or st.startswith("rule:") or st == "no_product"
+        if st == "llm_skipped":
+            skipped += 1                 # it reached the model: judge it with --llm
+            continue
+        good = st in ABSTAIN or st.startswith("rule:")
         ok.append(good)
         if not good:
             misses.append(f"{q['question']}  ->  {st}")
-    if ok:
-        log(f"  {typ:<16} {sum(ok)}/{len(ok)} = {sum(ok) / len(ok):.0%}")
+    if ok or skipped:
+        log(f"  {typ:<16} {sum(ok)}/{len(ok)} refused correctly" + (f"  ({skipped} reached the model)" if skipped else ""))
         for m in misses[:5]:
             log("      MISS: " + m)
 
@@ -121,7 +129,7 @@ by_kind = {}
 for a in inj:
     bot.reset()
     if a.get("photo_text"):
-        bot.load_photo(a["photo_text"])
+        bot.load_photo_text(a["photo_text"])
     out = bot.ask(a["question"])
     if out["status"] == "llm_skipped":
         continue

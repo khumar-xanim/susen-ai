@@ -1,11 +1,13 @@
-"""Does the same question get an answer every time? Usage: python scripts\\18_consistency.py [--n 20] [--repeat 3]"""
+"""Is the same question answered every time? Usage: python scripts\\18_consistency.py [--n 20] [--repeat 3]"""
 import argparse
 import json
 import random
+from collections import Counter
 
 from chatbot import Chatbot
 from config import EVAL_DIR
 
+RESPONDED = {"answered", "unknown_in_leaflet", "abstained"}
 ap = argparse.ArgumentParser()
 ap.add_argument("--n", type=int, default=20)
 ap.add_argument("--repeat", type=int, default=3)
@@ -14,18 +16,22 @@ qs = [json.loads(x) for x in open(EVAL_DIR / "questions_dev.jsonl", encoding="ut
 qs = [q for q in qs if q["type"] == "answerable"]
 random.Random(3).shuffle(qs)
 bot = Chatbot()
-rates, attempts, misses = [], [], []
+always, attempts, reasons, misses = 0, [], Counter(), []
 for q in qs[:args.n]:
-    ok = []
+    statuses = []
     for _ in range(args.repeat):
         bot.reset()
         out = bot.ask(q["question"])
-        ok.append(out["status"] == "answered")
-        attempts.append(out.get("attempts", 0))
-    rates.append(sum(ok) / args.repeat)
-    if sum(ok) < args.repeat:
-        misses.append((q["question"], sum(ok)))
-print(f"answered every time: {sum(r == 1 for r in rates)}/{len(rates)} questions; mean answer rate {sum(rates) / len(rates):.0%}")
+        statuses.append(out["status"])
+        if out.get("attempts"):
+            attempts.append(out["attempts"])
+            reasons.update(r[:55] for r in (out.get("attempt1_problems") or ["accepted at once"]))
+    if all(s in RESPONDED for s in statuses):
+        always += 1
+    else:
+        misses.append((q["question"], statuses))
+print(f"responded every time: {always}/{min(args.n, len(qs))} questions")
 print(f"mean generation attempts per answer: {sum(attempts) / max(len(attempts), 1):.2f}")
-for question, n in misses:
-    print(f"  not always answered ({n}/{args.repeat}): {question}")
+print("why the first attempt was rejected:", dict(reasons.most_common(6)))
+for question, statuses in misses:
+    print(f"  {question}  ->  {statuses}")

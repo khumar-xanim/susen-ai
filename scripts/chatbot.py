@@ -6,7 +6,8 @@ from datetime import datetime
 
 import rules
 from config import ADMIN, LLM_MODEL, OUT_DIR
-from kb import KnowledgeBase
+from dense import LEAFLET_DENSE, US_DENSE, load_us_chunks
+from kb import KnowledgeBase, embed
 from llm import generate
 from normalize import search_key
 from product_matcher import ProductIndex, GENERIC, numbers_of
@@ -61,6 +62,7 @@ class Chatbot:
         self.index = ProductIndex()
         self.chunks = load_chunks()
         self.kb = KnowledgeBase()
+        self.us = load_us_chunks()       # US FDA labels for drugs without an Azerbaijani leaflet
         self._brand, self._prefix, self.llm_seconds, self.last_error = "Dərman", [], 0.0, ""
         self.reset()
 
@@ -104,15 +106,33 @@ class Chatbot:
             return {"status": "ambiguous", "text": text, "candidates": res["candidates"],
                     "message": f"Şəkildə bunlar oxundu: {read}. Bir neçə uyğun dərman var, hansını nəzərdə tutursunuz?"}
         if leaflet_like(text):
-            chunks = []
-            for page, t in enumerate(texts, start=1):
-                chunks += split_by_headings(t, page=page, start_index=len(chunks))
-            self.photo = {"chunks": chunks}
+            self.photo = {"chunks": self._photo_chunks(texts)}
             return {"status": "photo_leaflet", "text": text, "candidates": [],
                     "message": "Şəkildəki mətni təlimat kimi oxudum, amma bu dərmanı kataloqda tapa bilmədim. Suallarınıza şəkildəki mətnə əsasən cavab verəcəm."}
         return {"status": "photo_unknown", "text": text, "candidates": [],
                 "message": f"Şəkildə bunlar oxundu: {read}. Bu adla dərmanı kataloqda tapa bilmədim; adı özünüz yaza bilərsiniz."}
+    def _photo_chunks(self, texts):
+        """Leaflet text read from a photo, split by headings; sentences that try to give instructions are dropped."""
+        chunks = []
+        for page, t in enumerate([texts] if isinstance(texts, str) else texts, start=1):
+            for c in split_by_headings(t, page=page, start_index=len(chunks)):
+                kept = [s for s in re.split(r"(?<=[.!?;])\s+", c["text"]) if not rules.is_injection_text(s)]
+                if kept:
+                    chunks.append({**c, "text": " ".join(kept)})
+        return chunks
 
+    def load_photo_text(self, texts):
+        self.current = self.group = self.pending = None
+        self.photo = {"chunks": self._photo_chunks(texts)}
+
+    def _dense_scores(self, drug, question, src):
+        store = US_DENSE if (src or "").startswith("US:") else LEAFLET_DENSE
+        if self.no_llm or not drug or src == PHOTO or not store.ok:
+            return None
+        try:
+            return store.scores(drug["id"], embed([question], cpu=True)[0])
+        except Exception:
+            return None
     # ------------------------------------------------------------------ main flow
     def _answer(self, message):
         hit = rules.check(message)
@@ -204,6 +224,8 @@ class Chatbot:
         self._brand = brand
         brand_key = row["brand_key"] if row is not None else ""
         chunks, src = self._chunks_for(drug)
+        if src and src.startswith("US:"):
+            self._prefix.append("Bu dərman üçün Azərbaycan təlimatı məndə yoxdur; eyni təsiredici maddənin ABŞ FDA etiketinə əsasən cavab verirəm (məhsulun forması və dozası fərqli ola bilər).")
         need_llm = bool(wanted) or (not intents and self._leftover(question, brand_key) >= 3)
 
         sources, det = [], []
@@ -229,8 +251,7 @@ class Chatbot:
 
         if chunks is None:
             return {"status": "no_leaflet", "reply": "\n\n".join(det + [f"Bu dərman üçün təlimat vərəqəsi məndə yoxdur, ona görə bu sualı cavablandıra bilmirəm. Əczaçıdan soruşa bilərsiniz."])}
-        evidence = retrieve(chunks, question, brand_key, wanted)
-        if not evidence:
+            evidence = retrieve(chunks, question, brand_key, wanted, dense=self._dense_scores(drug, question, src))        if not evidence:
             return {"status": "no_evidence", "reply": "\n\n".join(det + [f"{brand} vərəqəsində bu barədə məlumat tapmadım; əczaçıdan soruşa bilərsiniz."])}
         if unknown_only(evidence, wanted):
             c0 = next(c for c in evidence if c["category"] in wanted)
@@ -301,7 +322,7 @@ class Chatbot:
         cands.sort(reverse=True)
         return [s for _, _, s in cands[:k]]
 
-    def _reject_reason(self, text, ev_text, has_wanted):
+    def _reject_reason(self, text, ev_text, has_wanted, lexical=True):
         if not text:
             return "the answer was empty"
         if FOREIGN.search(text):
@@ -313,7 +334,7 @@ class Chatbot:
             return "you said the leaflet has no information, but EVIDENCE covers this topic" if has_wanted else ""
         if len(text) > 900:
             return "it was too long"
-        if support_score(text, ev_text) < 0.34:
+        if lexical and support_score(text, ev_text) < 0.34:
             return "several statements are not supported by EVIDENCE"
         return ""
 
@@ -333,6 +354,7 @@ class Chatbot:
         """Always tries to write a real answer: normal try, a retry that says what was wrong, then a two-step try."""
         ev_text = " ".join(c["text"] for c in evidence)
         has_wanted = bool(wanted) and any(c["category"] in wanted for c in evidence)
+        lexical = not any(c.get("lang") == "en" for c in evidence)
         base = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": self._user_prompt(row, evidence, question)}]
         text, reason, first = "", "", ""
         for attempt in range(3):
@@ -343,7 +365,7 @@ class Chatbot:
                                               {"role": "user", "content": f"That answer was rejected because {reason}. EVIDENCE does contain relevant information. Answer the QUESTION again in your own words, in correct Azerbaijani, using only EVIDENCE."}])
             else:
                 text = self._two_step(row, evidence, question)
-            reason = self._reject_reason(text, ev_text, has_wanted)
+            reason = self._reject_reason(text, ev_text, has_wanted, lexical)
             if attempt == 0:
                 first = reason
             if not reason:
@@ -358,18 +380,21 @@ class Chatbot:
             return self.photo["chunks"], PHOTO
         if drug and drug["has_leaflet"] and drug["id"] in self.chunks:
             return self.chunks[drug["id"]], f"{drug['id']}.pdf"
+        if drug and drug["id"] in self.us:
+            return self.us[drug["id"]], f"US:{drug['id']}"
         return None, None
 
     def _src(self, src, c):
         pages = str(c["page_start"]) if c["page_start"] == c["page_end"] else f"{c['page_start']}–{c['page_end']}"
         if src == PHOTO:
             label = f"Sizin şəkil №{pages}"
+        elif src.startswith("US:"):
+            label = "ABŞ FDA dərman etiketi (openFDA), Azərbaycan təlimatı deyil" + (f", bölmə: «{c['section']}»" if ADMIN else "")
         elif ADMIN:
             label = f"{src}, səh. {pages}, bölmə: «{c['section']}»"
         else:
             label = f"{self._brand} təlimat vərəqəsi, səh. {pages}"
         return {"file": src, "page": c["page_start"], "page_end": c["page_end"], "section": c["section"], "label": label}
-
     def _cite(self, src, evidence, text):
         """The ONE chunk that supports the answer best."""
         t = {stem(w) for w in search_key(text).split() if len(w) > 3}
@@ -395,12 +420,7 @@ class Chatbot:
         out = []
         for r in rows:
             if "price" in intents:
-                s = f"{r['brand']} ({r['form_clean']}, {v(r['dose_clean'], 'doza göstərilməyib')}): kataloqdakı qiymət {r['price_azn']} AZN."
-                if r["price_review"] == "True":
-                    s += " Bu qiymət kataloqda qeyri-adi yüksək görünür, apteklə dəqiqləşdirin."
-                if r["cols_match_name"] == "False":
-                    s += " Kataloqda bu dərman üçün cədvəl məlumatları ilə ad uyğun gəlmir, qiyməti aptekdə dəqiqləşdirin."
-                out.append(s)
+                out.append(f"{r['brand']} ({r['form_clean']}, {v(r['dose_clean'], 'doza göstərilməyib')}): kataloqdakı qiymət {r['price_azn']} AZN.")
         if "availability" in intents:
             out.append("Dərmanın hansı aptekdə olduğu barədə məlumatım yoxdur.")
         return "\n".join(out)
