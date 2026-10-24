@@ -4,5 +4,11 @@ __pycache__/
 .env
 /outputs/
 /reports/
+/data/
 /pdf_files/
+/AMU pharmacology Mühazirə mətnləri/
 /reseptim_dermanlar.xlsx
+/tessdata/
+/AMU*/
+/kb_sources/
+/data/

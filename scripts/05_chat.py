@@ -18,7 +18,7 @@ print("SUSEN AI is not a doctor or pharmacist; it reads official leaflets. Empty
 try:
     while q := input("\nSiz: ").strip():
         r = bot.ask(q)
-        print(f"\nSUSEN: {r['reply']}\n   [{r['status']} | {r['seconds']} s]")
+        print(f"\nSUSEN: {r['reply']}\n   [{r['status']} | {r['seconds']} s | model {r['model_seconds']} s | attempts {r.get('attempts', '-')}]")        
         if args.source and r.get("excerpt"):
             print("   original:", r["excerpt"]["text"], "|", r["excerpt"]["label"])
 except KeyboardInterrupt:

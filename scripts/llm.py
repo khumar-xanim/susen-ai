@@ -3,14 +3,20 @@ import re
 import time
 
 import ollama
-
+import threading
 from config import LLM_PROVIDER, LLM_MODEL, LLM_OPTIONS
 
 THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S)
 KEEP_ALIVE = "30m"
 
+_LOCK = threading.Semaphore(1)
+
 
 def _chat(model, messages, options):
+    with _LOCK:
+        return _chat_unlocked(model, messages, options)
+    
+def _chat_unlocked(model, messages, options):
     if LLM_PROVIDER != "ollama":
         raise NotImplementedError(f"Provider '{LLM_PROVIDER}' is not implemented yet")
     for attempt in range(2):

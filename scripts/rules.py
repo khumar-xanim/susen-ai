@@ -60,7 +60,7 @@ RULES = [  # patterns work on search_key() text (ə->e ı->i ş->s ç->c ğ->g �
     ("sedative_request", [r"alprazolam|diazepam|zopiklon|zolpidem|yuxu derman\w*|sakitlesdirici\w*|trankvilizator",
                           r"guclu|tez tesir|hansisi daha|dozasini|reseptsiz|hekim istemirem"]),
     ("symptom_triage", [r"xestelikim nedir|menim xestelik\w*\s+(nedir|ne ola biler)|\b(diaqnoz|tesxis)\w*"]),
-    ("choose_drug", [r"hansi derman\w*\s+(\w+\s+){0,3}(yaxsi|komek|tesir|uygun|faydali|isleyir|icim|icmeliyem|almaliyam)|mene (hansi )?derman (tovsiye|lazim|ver)|derman tovsiye|hansini isteyim"]),
+    ("choose_drug", [r"\bhansi derman\b|\bderman hansidir|\ben (yungul|yaxsi|guclu|tehlukesiz|tez tesir eden) derman|derman tovsiye|mene (hansi )?derman (tovsiye|lazim|ver)|hansini isteyim|hansi derman\w*\s+(\w+\s+){0,3}(yaxsi|komek|uygun|faydali|isleyir|icim|icmeliyem|almaliyam)"]),
     ("dose_confusion", [r"resept\w*", r"qutu\w*", r"\b(mq|ml)\b|miqdar|reqem", r"hansi reqem|ferqli|uygun gelmir|dozam kimi|goturum"]),
     ("kidney_dose", [r"boyrek|qaraciyer", r"xesteliyim|catismazligim|\bmenim\b", r"doza|antibiotik|derman|qebul"]),
 ]

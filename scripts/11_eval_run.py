@@ -13,7 +13,7 @@ from quality import check_answer
 from retrieval import detect_intents, rank_chunks, wanted_categories
 from dense import LEAFLET_DENSE
 from kb import embed
-ABSTAIN = {"no_product", "unknown_drug", "off_topic", "health_general", "no_leaflet", "no_evidence", "unknown_in_leaflet", "abstained", "kb_none"}
+ABSTAIN = {"no_product", "general_knowledge", "unknown_drug", "off_topic", "health_general", "no_leaflet", "no_evidence", "unknown_in_leaflet", "abstained", "kb_none"}
 
 lines = []
 

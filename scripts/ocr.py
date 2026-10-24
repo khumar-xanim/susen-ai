@@ -84,6 +84,12 @@ def read_words(img_bgr, psm=11):
 
 def ocr_all(data):
     """Photo bytes -> (text read like a document, words read like a package with their sizes)."""
+    import io    
+    from PIL import Image
+    w, h = Image.open(io.BytesIO(data)).size
+    if w * h > 40_000_000:
+        raise ValueError("Şəkil çox böyükdür")
+    
     img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise ValueError("Şəkil formatı tanınmadı")
